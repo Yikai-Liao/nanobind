@@ -19,52 +19,32 @@ This section covers three broad typing-related topics:
 Runtime introspection
 ---------------------
 
-Bound functions expose ``__signature__`` and ``__annotations__`` for standard
-Python tools such as ``inspect.signature()`` and ``inspect.get_annotations()``.
-Annotations are strings, allowing forward references without importing or
-evaluating the referenced types. Signatures preserve parameter kinds and actual
-default objects. Bound methods follow Python's standard signature rules: a
-fixed positional receiver is omitted, while a leading ``*args`` is retained.
-An empty signature or a leading keyword-only parameter or ``**kwargs`` raises
-``ValueError`` on bound access.
+Nanobind functions support ``inspect.signature()`` and
+``inspect.get_annotations()`` through ``__signature__`` and ``__annotations__``.
+Signatures preserve parameter kinds and actual default objects; annotations are
+unevaluated strings. Bound methods omit a fixed positional receiver and retain
+a leading ``*args``, following Python's rules. Empty signatures or a leading
+keyword-only parameter or ``**kwargs`` raise ``ValueError`` on bound access.
+Results are created on access; changing an annotation dictionary does not
+affect later reads. Consumers may retain a signature to avoid repeated work.
 
-Some C++ bindings have parameter layouts that Python cannot represent, such as
-a required positional parameter following an optional one, or an unnamed
-parameter following a named one. ``inspect.signature()`` raises ``ValueError``
-for these layouts; ``__annotations__`` remains available.
-
-.. code-block:: python
-
-   import inspect
-
-   signature = inspect.signature(my_ext.function)
-   arguments = signature.bind(*args, **kwargs)
-   annotations = my_ext.function.__annotations__
-
-Runtime introspection of overloaded functions is not currently supported,
-even when their parameter layouts agree. ``inspect.signature()`` raises
+Overloaded functions have no standard signature: ``inspect.signature()`` raises
 ``ValueError``, and ``__annotations__`` returns an empty dictionary. Individual
 overloads remain available through ``__nb_signature__`` and generated stubs.
-
-Introspection results are created on access without changing the function's
-storage or calling path. A consumer that repeatedly inspects a function may
-retain the returned ``inspect.Signature``. The annotation dictionary is a
-fresh derived view: mutating it does not change later reads.
-
-Extensions sharing a nanobind runtime use the function type provided by the
-first loaded runtime. If that runtime predates this feature, these attributes
-are unavailable until the runtime is upgraded.
+Parameter layouts that Python cannot represent also raise ``ValueError``,
+while their annotations remain available.
 
 For a :cpp:class:`nb::sig <sig>` override, Python's ``ast`` module parses the
-signature on access. Decorators, annotations, and default expressions are never
-executed. A default uses the binding's object at the corresponding parameter
-position when present, otherwise it must be a Python literal. The override
-describes the advertised interface; it does not change argument dispatch.
-Syntax must be supported by the running Python version: for example, type
-parameter syntax requires Python 3.12 or newer. Unsupported syntax raises an
-exception when either attribute is requested. Nonliteral defaults without a
-corresponding bound object raise an exception only when the signature is
-requested. Reading ``__annotations__`` does not recover defaults.
+advertised signature without executing decorators, annotations, or defaults,
+or changing argument dispatch. Invalid syntax, including syntax unsupported by
+the running Python version, blocks both attributes. Defaults use the binding's
+object at the corresponding parameter position when present; otherwise they
+must be Python literals. An unrecoverable default blocks only the signature:
+``__annotations__`` does not recover defaults.
+
+Extensions sharing a nanobind runtime use the first loaded runtime's function
+type. If that runtime predates this feature, these attributes are unavailable
+until it is upgraded.
 
 Signature customization
 -----------------------
